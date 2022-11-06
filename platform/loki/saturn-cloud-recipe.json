@@ -1,0 +1,25 @@
+{
+    "name": "loki",
+    "image": {
+        "name": "saturn-python",
+        "version": "2022.04.01",
+        "owner": "saturncloud"
+    },
+    "description": "",
+    "environment_variables": {},
+    "working_directory": "/home/jovyan/workspace",
+    "start_script": "curl -O -L \"https://github.com/grafana/loki/releases/download/v2.6.1/loki-linux-amd64.zip\"\nsudo apt update; sudo apt install unzip -y\nunzip \"loki-linux-amd64.zip\"\nchmod a+x \"loki-linux-amd64\"\n\nwget https://castle-minio.community.saturnenterprise.io/topvecsim/platform/loki/loki_config.yaml",
+    "git_repositories": [],
+    "secrets": [],
+    "deployment": {
+        "instance_type": "medium",
+        "command": "./loki-linux-amd64 --config.file loki_config.yaml",
+        "instance_count": 1,
+        "public": true,
+        "start_ssh": true,
+        "subdomain": "castle-loki"
+    },
+    "owner": "vishnudeva12",
+    "visibility": "org",
+    "schema_version": "2022.08.01"
+}
