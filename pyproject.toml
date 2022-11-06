@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "topvecsim"
+version = "0.1.0"
+description = "A library that leverages Top2Vec and Redis to provide performant vector similarity search."
+authors = ["Vishnu Deva <vishnu.deva12@gmail.com>", "Chirag Bajaj <chiragbajaj25@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "3.9.12"
+top2vec = {extras = ["indexing"], version = "^1.0.27"}
+redis = "^4.3.4"
+ipython = "^8.6.0"
+ipykernel = "^6.17.0"
+redis-om = "^0.1.0"
+fire = "^0.4.0"
+black = "^22.10.0"
+
+[tool.poetry.scripts]
+topvecsim = "topvecsim.cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
