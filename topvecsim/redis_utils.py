@@ -109,6 +109,8 @@ async def load_topics(
     num_topic_words_to_store: int,
     sem_counter: int,
 ):
+    """Load the topics into Redis asynchronously."""
+
     semaphore = asyncio.Semaphore(sem_counter)
 
     async def load_topic(words, word_scores, idx, size, vec):
