@@ -106,7 +106,7 @@ async def load_topics(
     topic_indexes: List[int],
     topic_sizes: List[int],
     topic_vectors: List[np.ndarray],
-    num_words_to_store: int,
+    num_topic_words_to_store: int,
     sem_counter: int,
 ):
     semaphore = asyncio.Semaphore(sem_counter)
@@ -117,12 +117,12 @@ async def load_topics(
 
             # Since Redis Hashes can't contain lists, we add a key for each topic word.
             mapping = {
-                f"word_{i}": v for i, v, in enumerate(words[:num_words_to_store])
+                f"word_{i}": v for i, v, in enumerate(words[:num_topic_words_to_store])
             }
             mapping.update(
                 {
                     f"word_score_{i}": float(v)
-                    for i, v, in enumerate(word_scores[:num_words_to_store])
+                    for i, v, in enumerate(word_scores[:num_topic_words_to_store])
                 }
             )
             mapping.update(
@@ -151,62 +151,6 @@ async def load_topics(
             )
         ]
     )
-
-
-async def load_data(
-    documents: Dict[str, Any],
-    vocab: Dict[str, Any],
-    topics: Dict[str, Any],
-    num_words_to_store: int = 10,
-    sem_counter: int = 16,
-):
-    """Load the paper metadata and the vectors into Redis."""
-
-    document_data = documents["data"]  # The actual content of each document.
-    document_indexes = documents["indexes"]  # The position of the document.
-    document_vectors = documents["vectors"]
-    document_topics = documents["topics"]  # Topic IDX for each document.
-    document_topic_scores = documents["topic_scores"]  # Scores for each document topic.
-
-    words = vocab["words"]
-    word_indexes = vocab["indexes"]
-    word_vectors = vocab["vectors"]
-
-    topic_indexes = topics["indexes"]  # The position of each topic in the topic list.
-    topic_vectors = topics["vectors"]
-    topic_sizes = topics["sizes"]  # Frequency of documents per topic.
-    topic_words = topics["words"]  # 2D array of 50 words to describe every topic.
-    topic_word_scores = topics["word_scores"]
-    """2D array of 50 scores to show the distance between every word assigned to a
-    topic and the topic itself."""
-
-    await load_papers(
-        papers=document_data,
-        indexes=document_indexes,
-        topics=document_topics,
-        topic_scores=document_topic_scores,
-        vectors=document_vectors,
-        sem_counter=sem_counter,
-    )
-
-    await load_words(
-        words=words,
-        word_indexes=word_indexes,
-        sem_counter=sem_counter,
-        word_vectors=word_vectors,
-    )
-
-    await load_topics(
-        topic_words=topic_words,
-        topic_word_scores=topic_word_scores,
-        topic_indexes=topic_indexes,
-        topic_sizes=topic_sizes,
-        topic_vectors=topic_vectors,
-        num_words_to_store=num_words_to_store,
-        sem_counter=sem_counter,
-    )
-
-    # await setup_vector_index(number_of_vectors=len(document_data))
 
 
 async def setup_vector_index(number_of_vectors: int, prefix: str = "paper_vector:"):
