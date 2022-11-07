@@ -1,12 +1,19 @@
 from fire import Fire
 
 from topvecsim.ml import train_save_top2vec, load_train_save_umap
+from topvecsim.load_data import load_all_data
 
 
 def main():
     try:
         fire_obj = Fire(
-            {"train": {"top2vec": train_save_top2vec, "umap": load_train_save_umap}}
+            {
+                "train": {
+                    "top2vec": train_save_top2vec,
+                    "umap": load_train_save_umap
+                },
+                "load_data": load_all_data
+            }
         )
     except KeyboardInterrupt:
         print("\n\n\tBye!\n\n")
