@@ -1,5 +1,4 @@
 import re
-
 from redis.asyncio import Redis
 from typing import Optional, Pattern
 from redis.commands.search.query import Query
@@ -8,9 +7,7 @@ from redis.commands.search.indexDefinition import IndexDefinition, IndexType
 
 
 class TokenEscaper:
-    """
-    Escape punctuation within an input string. Taken from RedisOM Python.
-    """
+    """Escape punctuation within an input string. Taken from RedisOM Python."""
 
     # Characters that RediSearch requires us to escape during queries.
     # Source: https://redis.io/docs/stack/search/reference/escaping/#the-rules-of-text-field-tokenization
@@ -31,10 +28,8 @@ class TokenEscaper:
 
 
 class SearchIndex:
-    """
-    SearchIndex is used to wrap and capture all information
-    and actions applied to a RediSearch index including creation,
-    management, and query construction.
+    """SearchIndex is used to wrap and capture all information and actions applied to a
+    RediSearch index including creation, management, and query construction.
     """
 
     escaper = TokenEscaper()
@@ -42,20 +37,28 @@ class SearchIndex:
     async def create_flat(
         self,
         *fields,
+        index_name: str,
         redis_conn: Redis,
         number_of_vectors: int,
         prefix: str,
         distance_metric: str = "L2",
-    ):
-        """
-        Create a FLAT aka brute force style index.
+    ) -> None:
+        """Create a FLAT aka brute force style index.
 
-        Args:
-            redis_conn (Redis): Redis connection object.
-            number_of_vectors (int): Count of the number of initial vectors.
-            prefix (str): key prefix to use for RediSearch index creation.
-            distance_metric (str, optional): Distance metric to use for Vector Search. Defaults to 'L2'.
+        Parameters
+        ----------
+        index_name : string
+            The name of the index to be created.
+        redis_conn : Redis
+            Redis connection object.
+        number_of_vectors : int
+            Count of the number of initial vectors.
+        prefix : string
+            Key prefix to use for RediSearch index creation.
+        distance_metric : optional string
+            Distance metric to use for Vector Search. Defaults to 'L2'.
         """
+
         vector_field = VectorField(
             "vector",
             "FLAT",
@@ -67,25 +70,40 @@ class SearchIndex:
                 "BLOCK_SIZE": number_of_vectors,
             },
         )
-        await self._create(*fields, vector_field, redis_conn=redis_conn, prefix=prefix)
+
+        await self._create(
+            *fields,
+            vector_field,
+            index_name=index_name,
+            redis_conn=redis_conn,
+            prefix=prefix,
+        )
 
     async def create_hnsw(
         self,
         *fields,
+        index_name: str,
         redis_conn: Redis,
         number_of_vectors: int,
         prefix: str,
         distance_metric: str = "COSINE",
-    ):
-        """
-        Create an approximate NN index via HNSW.
+    ) -> None:
+        """Create an approximate NN index via HNSW.
 
-        Args:
-            redis_conn (Redis): Redis connection object.
-            number_of_vectors (int): Count of the number of initial vectors.
-            prefix (str): key prefix to use for RediSearch index creation.
-            distance_metric (str, optional): Distance metric to use for Vector Search. Defaults to 'COSINE'.
+        Parameters
+        ----------
+        index_name : string
+            The name of the index to be created.
+        redis_conn : Redis
+            Redis connection object.
+        number_of_vectors : int
+            Count of the number of initial vectors.
+        prefix : string
+            Key prefix to use for RediSearch index creation.
+        distance_metric : optional string
+            Distance metric to use for Vector Search. Defaults to 'COSINE'.
         """
+
         vector_field = VectorField(
             "vector",
             "HNSW",
@@ -96,41 +114,63 @@ class SearchIndex:
                 "INITIAL_CAP": number_of_vectors,
             },
         )
-        await self._create(*fields, vector_field, redis_conn=redis_conn, prefix=prefix)
 
-    async def _create(self, *fields, redis_conn: Redis, prefix: str):
-        # Create Index
-        await redis_conn.ft("papers").create_index(
+        await self._create(
+            *fields,
+            vector_field,
+            index_name=index_name,
+            redis_conn=redis_conn,
+            prefix=prefix,
+        )
+
+    async def _create(self, *fields, index_name: str, redis_conn: Redis, prefix: str):
+        """Create an index.
+
+        Parameters
+        ----------
+        index_name : string
+            The name of the index to be created.
+        """
+
+        await redis_conn.ft(index_name).create_index(
             fields=fields,
             definition=IndexDefinition(prefix=[prefix], index_type=IndexType.HASH),
         )
 
     def process_tags(self, categories: list, years: list) -> str:
-        """
-        Helper function to process tags data. TODO - factor this
-        out so it's agnostic to the name of the field.
+        """Helper function to process tags data.
 
-        Args:
-            categories (list): List of categories.
-            years (list): List of years.
+        Parameters
+        ----------
+        categories : list
+            List of categories.
+        years : list
+            List of years.
 
-        Returns:
-            str: RediSearch tag query string.
+        Returns
+        -------
+        str
+            RediSearch tag query string.
         """
+
         tag = "("
         if years:
-            years = "|".join([self.escaper.escape(year) for year in years])
-            tag += f"(@year:{{{years}}})"
+            years_str = "|".join([self.escaper.escape(year) for year in years])
+            tag += f"(@year:{{{years_str}}})"
+
         if categories:
-            categories = "|".join([self.escaper.escape(cat) for cat in categories])
+            categories_str = "|".join([self.escaper.escape(cat) for cat in categories])
             if tag:
-                tag += f" (@categories:{{{categories}}})"
+                tag += f" (@categories:{{{categories_str}}})"
             else:
-                tag += f"(@categories:{{{categories}}})"
+                tag += f"(@categories:{{{categories_str}}})"
+
         tag += ")"
-        # if no tags are selected
+
+        # If no tags are selected, select all keys.
         if len(tag) < 3:
             tag = "*"
+
         return tag
 
     def vector_query(
@@ -140,23 +180,30 @@ class SearchIndex:
         search_type: str = "KNN",
         number_of_results: int = 20,
     ) -> Query:
+        """Create a RediSearch query to perform hybrid vector and tag based searches.
+
+        Parameters
+        ----------
+        categories : list
+            List of categories.
+        years : list
+            List of years.
+        search_type : optional str
+            Style of search. Defaults to "KNN".
+        number_of_results : optional int
+            The number of results to fetch. Defaults to 20.
+
+        Returns
+        -------
+        Query
+            The RediSearch Query object.
         """
-        Create a RediSearch query to perform hybrid vector and tag based searches.
-
-
-        Args:
-            categories (list): List of categories.
-            years (list): List of years.
-            search_type (str, optional): Style of search. Defaults to "KNN".
-            number_of_results (int, optional): How many results to fetch. Defaults to 20.
-
-        Returns:
-            Query: RediSearch Query
-
-        """
-        # Parse tags to create query
+        # Parse tags to create query.
         tag_query = self.process_tags(categories, years)
+
+        # Use the tag_query and feed the results from it into the KNN query.
         base_query = f"{tag_query}=>[{search_type} {number_of_results} @vector $vec_param AS vector_score]"
+
         return (
             Query(base_query)
             .sort_by("vector_score")
@@ -166,16 +213,22 @@ class SearchIndex:
         )
 
     def count_query(self, years: list, categories: list) -> Query:
-        """
-        Create a RediSearch query to count available documents.
+        """Create a RediSearch query to count available documents.
 
-        Args:
-            categories (list): List of categories.
-            years (list): List of years.
+        Parameters
+        ----------
+        categories : list
+            List of categories.
+        years : list
+            List of years.
 
-        Returns:
-            Query: RediSearch Query
+        Returns
+        -------
+        Query
+            The RediSearch Query object.
         """
+
         # Parse tags to create query
         tag_query = self.process_tags(categories, years)
+
         return Query(f"{tag_query}").no_content().dialect(2)

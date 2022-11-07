@@ -153,7 +153,7 @@ async def load_topics(
     )
 
 
-async def setup_vector_index(number_of_vectors: int, prefix: str = "paper_vector:"):
+async def setup_vector_index(index_name: str, number_of_vectors: int, prefix: str):
     """Setup the vector index."""
 
     # Run the migration to setup the indexes.
@@ -168,6 +168,7 @@ async def setup_vector_index(number_of_vectors: int, prefix: str = "paper_vector
     await search_index.create_hnsw(
         categories_field,
         year_field,
+        index_name=index_name,
         redis_conn=redis_conn,
         number_of_vectors=number_of_vectors,
         prefix=prefix,

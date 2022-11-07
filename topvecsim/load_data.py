@@ -62,7 +62,23 @@ async def load_data(
         sem_counter=sem_counter,
     )
 
-    # await setup_vector_index(number_of_vectors=len(document_data))
+    await setup_vector_index(
+        index_name="papers",
+        number_of_vectors=len(document_data),
+        prefix="paper_vector:",
+    )
+
+    await setup_vector_index(
+        index_name="words",
+        number_of_vectors=len(words),
+        prefix="word_vector:",
+    )
+
+    await setup_vector_index(
+        index_name="topics",
+        number_of_vectors=len(topic_words),
+        prefix="topic_vector:",
+    )
 
 
 async def load_all_data(
