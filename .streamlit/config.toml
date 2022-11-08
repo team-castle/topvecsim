@@ -1,5 +1,6 @@
 [server]
 port=8000
+
 [theme]
 primaryColor="#bd93f9"
 backgroundColor="#282a36"
