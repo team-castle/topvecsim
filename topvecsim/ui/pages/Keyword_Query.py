@@ -83,11 +83,26 @@ if f_button:
                         },
                     )
                 )
-
+            except:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                res = asyncio.run(
+                    redis_conn.ft("papers").search(
+                        query,
+                        query_params={
+                            "vec_param": np.array(vec, dtype=np.float32).tobytes()
+                        },
+                    )
+                )
+                
             for doc in res.docs[:num_papers]:
                 try:
                     p = asyncio.run(Paper.find(Paper.paper_id == doc.paper_id).first())
                 except Exception as e:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    p = asyncio.run(Paper.find(Paper.paper_id == doc.paper_id).first())
+                except:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
                     p = asyncio.run(Paper.find(Paper.paper_id == doc.paper_id).first())
