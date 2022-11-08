@@ -1,3 +1,6 @@
+import os
+import uuid
+import mlflow
 import numpy as np
 import pandas as pd
 from umap import UMAP
@@ -8,11 +11,16 @@ from joblib import dump, load
 from typing import List, Dict, Literal, Optional, Union
 
 from topvecsim import logger
-from topvecsim.network_utils import upload
+from topvecsim.minio_utils import minio_client
 from topvecsim.data import get_df, load_df_from_pkl, save_df_as_pkl
 
+if os.getenv("MLFLOW_TRACKING_URI"):
+    mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
 
-def save_top2vec_model(model: Top2Vec, save_path: str) -> None:
+
+def save_top2vec_model(
+    model: Top2Vec, save_path: str, key: Optional[str] = None
+) -> None:
     """Save the Top2Vec to the provided path.
 
     Parameters
@@ -21,13 +29,17 @@ def save_top2vec_model(model: Top2Vec, save_path: str) -> None:
         The trained model that will be saved.
     save_path : string
         The path to which the model will be saved.
+    key : string
+        The remote key to which the file will be uploaded.
     """
-
-    logger.info(f"Saving Top2Vec model to {save_path}")
 
     model.save(save_path)
 
-    upload(save_path)
+    if key and minio_client:
+        minio_client.upload_from_path_to_key(
+            path=save_path,
+            key=key,
+        )
 
 
 def load_top2vec_model(model_path: str) -> Top2Vec:
@@ -104,6 +116,7 @@ def load_train_save_umap(
 
 
 def train_save_top2vec(
+    name: str,
     save_path: str,
     column_name: str = "input",
     data_file: Optional[str] = None,
@@ -123,6 +136,8 @@ def train_save_top2vec(
 
     Parameters
     ----------
+    name : string
+        A name for the current run. Used for tracking purposes.
     save_path : string
         The path to which the trained Top2Vec model will be saved.
     column_name : string
@@ -152,6 +167,14 @@ def train_save_top2vec(
     save_training_data : boolean
         Whether the training data should be saved to disk. True by default.
     """
+
+    run_name = f"run_{str(uuid.uuid4())[:4]}"
+    run_dir = f"/tmp/topvecsim/{run_name}"
+    Path(run_dir).mkdir(parents=True, exist_ok=True)
+
+    mlflow.start_run(run_name=run_name)
+
+    mlflow.log_param(key="num_workers", value=workers)
 
     assert (
         (df is not None) or data_file or df_path
@@ -185,10 +208,15 @@ def train_save_top2vec(
 
     # Save the training dataframe as a Pickle file to disk for later use.
     if save_training_data:
-        save_df_as_pkl(df, "training_data.pkl")
+        save_df_as_pkl(
+            df=df,
+            save_path=f"{run_dir}/training_data.pkl",
+            key=f"runs/{run_name}/training_data.pkl",
+        )
+
+    mlflow.log_param(key="num_documents", value=len(df))
 
     logger.info(f"Saved the training data as a pickle file to: {'training_data.pkl'}")
-
     logger.info("Beginning the model training.")
 
     # Train the Top2Vec model.
@@ -203,7 +231,19 @@ def train_save_top2vec(
 
     logger.info("Training complete.")
 
+    mlflow.log_params(
+        {"num_words": len(model.vocab), "num_topics": len(model.topic_vectors)}
+    )
+
     # Save the Top2Vec model to disk and remote object storage.
-    save_top2vec_model(model, save_path)
+    save_top2vec_model(
+        model,
+        save_path=f"{run_dir}/model.top2vec",
+        key=f"runs/{run_name}/model.top2vec",
+    )
+
+    logger.info(f"Saved Top2Vec model to {save_path}.")
+
+    mlflow.end_run()
 
     return {"model": model, "df": df}

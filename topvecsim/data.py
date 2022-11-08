@@ -3,9 +3,10 @@ import json
 import pickle
 import string
 import pandas as pd
-from typing import List, Dict, Any, Union, Iterator
+from typing import List, Dict, Any, Optional, Union, Iterator
 
 from topvecsim import logger
+from topvecsim.minio_utils import minio_client
 
 YEAR_PATTERN = r"(19|20[0-9]{2})"
 
@@ -111,10 +112,10 @@ def papers(
     with open(data_file, "r") as f:
         for paper in f:
             paper = process(paper)
-            if isinstance(filter, str):
+            if isinstance(cat_filter, str):
                 if paper["categories"].startswith(cat_filter):
                     yield paper
-            elif isinstance(filter, list):
+            elif isinstance(cat_filter, list):
                 if any(sub_cat in paper["categories"] for sub_cat in cat_filter):
                     yield paper
 
@@ -142,7 +143,7 @@ def get_df(
     return df
 
 
-def save_df_as_pkl(df: pd.DataFrame, save_path: str):
+def save_df_as_pkl(df: pd.DataFrame, save_path: str, key: Optional[str] = None):
     """Save Dataframe to a Pickle file.
 
     Parameters
@@ -153,6 +154,9 @@ def save_df_as_pkl(df: pd.DataFrame, save_path: str):
 
     with open(save_path, "wb") as f:
         pickle.dump(df, f)
+
+    if key and minio_client:
+        minio_client.upload_from_path_to_key(save_path, key)
 
 
 def load_df_from_pkl(save_path: str) -> pd.DataFrame:

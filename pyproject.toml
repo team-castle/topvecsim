@@ -18,6 +18,7 @@ boto3 = "^1.26.3"
 python-logging-loki = "^0.3.1"
 rich = "^12.6.0"
 streamlit = "^1.14.0"
+mlflow-skinny = "^1.30.0"
 
 [tool.poetry.scripts]
 topvecsim = "topvecsim.cli:main"
