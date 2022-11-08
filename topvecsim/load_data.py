@@ -91,7 +91,7 @@ async def load_all_data(
         Controls concurrency. Use this to limit the number of parallel clients
         connected to your Redis DB.
     limit_data : Dict[str, Any]
-        Helps control the amount of data loaded into the DB.
+        Helps control the amount of data loaded into the DB. Contains 
     index : boolean
         Whether or not to index the data.
     """

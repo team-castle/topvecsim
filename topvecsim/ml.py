@@ -1,61 +1,15 @@
 import numpy as np
 import pandas as pd
 from umap import UMAP
+from pathlib import Path
 import umap.umap_ as umap
 from top2vec import Top2Vec
 from joblib import dump, load
-from typing import List, Literal, Optional
+from typing import List, Dict, Literal, Optional, Union
 
-from topvecsim.data import get_df
-
-
-def train_top2vec_model(
-    documents: List[str],
-    speed: Literal["fast-learn", "learn", "deep-learn"] = "learn",
-    workers: int = 16,
-    embedding_model: str = "doc2vec",
-    use_corpus_file: bool = True,
-    **kwargs,
-):
-    """Train a Top2Vec model with the provided list of documents and arguments to tune
-    the model.
-
-    All these parameters are directly passed to the Top2Vec model, so for a detailed
-    explanation, it's best to check out the top2vec Github Repository.
-
-    Parameters
-    ----------
-    documents : list of strings
-        The documents used to train the model.
-    speed : string
-        The mode in which the model will be trained.
-
-        fast-learn -> 4 epochs
-        learn -> 40 epochs
-        deep-learn -> 400 epochs
-    workers : int
-        Make this equal to the number of CPUs your machine possesses.
-    embedding_model : str
-        This is doc2vec by default. Best to leave it at this since this is where we
-        got the best results even if the trainings took time; this is because the model
-        is trained from scratch.
-    kwargs : dict
-        Any arguments you want to pass directly to the Top2Vec class as mentioned in
-        their documentation.
-    """
-
-    model = Top2Vec(
-        documents=documents,
-        speed=speed,
-        workers=workers,
-        embedding_model=embedding_model,
-        use_corpus_file=use_corpus_file,
-        **kwargs,
-    )
-
-    print("Training complete.")
-
-    return model
+from topvecsim import logger
+from topvecsim.network_utils import upload
+from topvecsim.data import get_df, load_df_from_pkl, save_df_as_pkl
 
 
 def save_top2vec_model(model: Top2Vec, save_path: str) -> None:
@@ -69,9 +23,11 @@ def save_top2vec_model(model: Top2Vec, save_path: str) -> None:
         The path to which the model will be saved.
     """
 
-    print(f"Saving Top2Vec model to {save_path}")
+    logger.info(f"Saving Top2Vec model to {save_path}")
 
     model.save(save_path)
+
+    upload(save_path)
 
 
 def load_top2vec_model(model_path: str) -> Top2Vec:
@@ -88,30 +44,9 @@ def load_top2vec_model(model_path: str) -> Top2Vec:
         The loaded model.
     """
 
-    print(f"Loading Top2Vec model from {model_path}")
+    logger.info(f"Loading Top2Vec model from {model_path}")
 
     return Top2Vec.load(model_path)
-
-
-def train_umap_model(vectors: np.ndarray, **kwargs) -> UMAP:
-    """Instantiate and train a UMAP model with the provided vectors.
-
-    Parameters
-    ----------
-    vectors : numpy array
-        The vectors on which to train the UMAP model.
-
-    Returns
-    -------
-    UMAP
-        The trained UMAP model.
-    """
-
-    model = umap.UMAP(**kwargs)
-
-    model.fit(vectors)
-
-    return model
 
 
 def save_umap_model(
@@ -148,25 +83,43 @@ def load_train_save_umap(
             "metric": "cosine",
         }
 
+    logger.info("Loading Top2Vec model.")
+
     top2vec_model = load_top2vec_model(top2vec_model_path)
 
-    umap_model = train_umap_model(top2vec_model.document_vectors, **umap_kwargs)
+    logger.info("Beginning UMAP Training.")
 
-    save_umap_model(umap_model, umap_save_path)
+    # Instantiate the UMAP model.
+    model = umap.UMAP(**umap_kwargs)
+
+    # Train the UMAP model with the document vectors.
+    model.fit(top2vec_model.document_vectors)
+
+    logger.info("Completed UMAP Training.")
+
+    # Save the UMAP model to disk.
+    save_umap_model(model, umap_save_path)
+
+    logger.info(f"Saved trained UMAP model to {umap_save_path}")
 
 
 def train_save_top2vec(
     save_path: str,
     column_name: str = "input",
     data_file: Optional[str] = None,
+    df_path: Optional[str] = None,
     df: Optional[pd.DataFrame] = None,
     workers: int = 8,
     speed: Literal["fast-learn", "learn", "deep-learn"] = "learn",
     embedding_model: str = "doc2vec",
+    cat_filter: Union[str, List[str]] = "cs.",
+    save_training_data: bool = True,
     **top2vec_kwargs,
-):
+) -> Dict[str, Union[Top2Vec, pd.DataFrame]]:
     """Process the JSON dataset, train a Top2Vec model, and save it to the provided
     path.
+
+    ### Entrypoint to Top2Vec model training.
 
     Parameters
     ----------
@@ -177,6 +130,8 @@ def train_save_top2vec(
         the model.
     data_file : optional string
         The path to the Dataset in JSON form.
+    df_path : optional string
+        The cleaned Dataset. Dataframe saved as a pickle file.
     df : optional pandas dataframe
         The dataset as a dataframe.
     workers : int
@@ -191,31 +146,64 @@ def train_save_top2vec(
         This is "doc2vec" by default. Best to leave it at this since this is where we
         got the best results even if the trainings took time; this is because the model
         is trained from scratch.
+    cat_filter : string or list of strings
+        Category filter to limit the data from the arXiv dataset that will be
+        considered for the training.
+    save_training_data : boolean
+        Whether the training data should be saved to disk. True by default.
     """
 
     assert (
-        df is not None
-    ) or data_file, "One of `df` or `data_file` has to be available"
+        (df is not None) or data_file or df_path
+    ), "One of `df`, `df_path`, or `data_file` has to be available"
 
-    if df is None:
-        assert isinstance(data_file, str), "data_file has to be a string."
+    # If a JSON file is provided, pass it to get_df, clean it and get the dataframe.
+    if data_file:
+        assert (
+            isinstance(data_file, str) and Path(data_file).exists()
+        ), "data_file has to be a string."
 
-        print(f"Generating a Pandas Dataframe from: {data_file}")
+        logger.info(f"Generating a Pandas Dataframe from: {data_file}")
 
-        df = get_df(data_file=data_file)
+        df = get_df(data_file=data_file, cat_filter=cat_filter)
 
-        print(f"Created Dataframe of shape: {df.shape}")
+        logger.info(f"Created Dataframe of shape: {df.shape}")
+
+    # If a path to a Dataframe pickle file is given, we assume that it's already been
+    # cleaned, and we load it directly.
+    elif df_path:
+        logger.info(f"Loaded Dataframe from Pickle file: {df_path}")
+
+        df = load_df_from_pkl(df_path)
+
+    # At this point, the user has passed in a Datafram directly, in which case we do
+    # nothing.
     else:
         assert isinstance(df, pd.DataFrame)
 
-    model = train_top2vec_model(
+        logger.info(f"Received Dataframe of shape: {df.shape}")
+
+    # Save the training dataframe as a Pickle file to disk for later use.
+    if save_training_data:
+        save_df_as_pkl(df, "training_data.pkl")
+
+    logger.info(f"Saved the training data as a pickle file to: {'training_data.pkl'}")
+
+    logger.info("Beginning the model training.")
+
+    # Train the Top2Vec model.
+    model = Top2Vec(
         documents=df[column_name].tolist(),
-        workers=workers,
         speed=speed,
+        workers=workers,
         embedding_model=embedding_model,
+        use_corpus_file=True,  # Speeds up training by using a tmp file.
         **top2vec_kwargs,
     )
 
-    save_top2vec_model(model=model, save_path=save_path)
+    logger.info("Training complete.")
 
-    return model
+    # Save the Top2Vec model to disk and remote object storage.
+    save_top2vec_model(model, save_path)
+
+    return {"model": model, "df": df}

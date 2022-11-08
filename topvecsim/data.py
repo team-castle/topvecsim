@@ -5,6 +5,8 @@ import string
 import pandas as pd
 from typing import List, Dict, Any, Union, Iterator
 
+from topvecsim import logger
+
 YEAR_PATTERN = r"(19|20[0-9]{2})"
 
 
@@ -91,7 +93,9 @@ def process(paper_json: str):
     }
 
 
-def papers(data_file: str) -> Iterator[Dict[str, Any]]:
+def papers(
+    data_file: str, cat_filter: Union[str, List[str]]
+) -> Iterator[Dict[str, Any]]:
     """Get a path to a JSON file, iterate through the records and yield them.
 
     Parameters
@@ -107,15 +111,17 @@ def papers(data_file: str) -> Iterator[Dict[str, Any]]:
     with open(data_file, "r") as f:
         for paper in f:
             paper = process(paper)
-            # if any(sub_cat in paper["categories"] for sub_cat in [
-            #     "astro-ph", "cond-mat", "qr-qc", "hep-", "math-ph", "nlin", "nucl", "physics", "quant-ph"
-            # ]):
-            if paper["categories"].startswith("cs."):
-                yield paper
+            if isinstance(filter, str):
+                if paper["categories"].startswith(cat_filter):
+                    yield paper
+            elif isinstance(filter, list):
+                if any(sub_cat in paper["categories"] for sub_cat in cat_filter):
+                    yield paper
 
 
 def get_df(
     data_file: str = "/home/jovyan/arxiv/arxiv-metadata-oai-snapshot.json",
+    cat_filter: Union[str, List[str]] = "cs.",
 ) -> pd.DataFrame:
     """Create and return a Pandas DataFrame from a file path.
 
@@ -123,12 +129,15 @@ def get_df(
     ----------
     data_file : str
         The path to the Dataset in JSON form.
+    cat_filter : string or list of strings
+        Category filter to limit the data from the arXiv dataset that will be
+        considered for the training.
     """
 
-    df = pd.DataFrame(list(papers(data_file)))
+    df = pd.DataFrame(list(papers(data_file, cat_filter)))
 
-    print(f"Created DataFrame of shape {df.shape}, here's a sample:\n")
-    print(df.head())
+    logger.info(f"Created DataFrame of shape {df.shape}, here's a sample:\n")
+    logger.info(df.head())
 
     return df
 
