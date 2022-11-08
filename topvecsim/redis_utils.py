@@ -129,7 +129,7 @@ async def load_topics(
             )
             mapping.update(
                 {
-                    "word_id": int(idx),
+                    "topic_id": int(idx),
                     "size": str(size),
                     "vector": np.array(vec, dtype=np.float32).tobytes(),
                 }
