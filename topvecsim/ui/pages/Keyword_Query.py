@@ -22,7 +22,10 @@ search_index = SearchIndex()
 
 @st.experimental_memo
 def load_model():
-    model = Top2Vec.load("quick.top2vec")
+    try:
+        model = Top2Vec.load("cs-papers-only.top2vec")
+    except FileNotFoundError as e:
+        raise Exception("Download the model in order to continue.")
     return model
 
 
