@@ -1,3 +1,5 @@
+![logo](img/topvecsim.png)
+
 # TopVecSim
 
 This library was built for the 2022 Vector Search Hackathon hosted by the MLOps
@@ -34,3 +36,26 @@ Link: https://github.com/redis/redis-om-python
 ### Top2Vec
 
 Link: https://github.com/ddangelov/Top2Vec/
+
+
+# Quick Start
+
+pip install .
+
+# Set up this repository for development
+
+## Setup Poetry
+
+Install Poetry:
+
+`curl -sSL https://install.python-poetry.org | python3 - --preview`
+
+## Create a new environment
+
+`poetry shell`
+
+This automatically creates a new virtual environment if there isn't one already.
+
+## Install Dependencies
+
+`poetry install`
