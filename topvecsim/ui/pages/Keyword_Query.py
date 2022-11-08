@@ -11,7 +11,7 @@ loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 os.environ[
     "REDIS_OM_URL"
-] = "redis://default:{}@redis-18366.c21900.ap-south-1-1.ec2.cloud.rlrcp.com:18366"
+] = "redis://default:{}@redis-18366.c21900.ap-south-1-1.ec2.cloud.rlrcp.com:18366".format(os.getenv("REDIS_PASSWORD"))
 
 from topvecsim.models import Paper
 from topvecsim.redis_utils import redis_conn
